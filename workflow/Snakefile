@@ -1,0 +1,21 @@
+configfile: "config/config.yaml"
+
+samples = config["samples"]
+input_path = config["input_path"]
+
+rule all:
+    input:
+        expand("results/fastqc/{sample}_raw_fastqc.html", sample=samples)
+
+rule fastqc:
+    input:
+        expand("{path}/{{sample}}_raw.fastq", path=input_path)
+    output:
+        html="results/fastqc/{sample}_raw_fastqc.html",
+        zip="results/fastqc/{sample}_raw_fastqc.zip"
+    conda:
+        "envs/rnaseq_preprocess.yaml"
+    shell:
+        """
+        fastqc {input} --outdir results/fastqc
+        """
