@@ -1,0 +1,23 @@
+name: dge-rnaseq
+channels: 
+  - conda-forge 
+  - bioconda 
+  - defaults 
+dependencies: 
+  - python=3.11 
+  - r-base=4.3 
+  - r-tidyverse 
+  - r-data.table 
+  - r-ggplot2 
+  - r-ggrepel 
+  - r-pheatmap 
+  - bioconductor-edger 
+  - bioconductor-deseq2 
+  - bioconductor-enhancedvolcano 
+  - bioconductor-clusterprofiler 
+  - bioconductor-org.mm.eg.db 
+  - bioconductor-biomart 
+  - bioconductor-annotationdbi 
+  - conda-forge::r-msigdbr 
+  - conda-forge::r-devtools
+  

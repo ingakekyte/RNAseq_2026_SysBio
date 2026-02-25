@@ -9,10 +9,12 @@ rule all:
         expand("results/fastp/{sample}_fastp.html", sample=samples),
         expand("results/hisat2/{sample}.sorted.bam.bai", sample=samples),
         expand("results/counts/{sample}.featureCounts.txt.summary", sample=samples),
-        "results/multiqc/multiqc_report.html"
+        "results/multiqc/multiqc_report.html",
+        "results/DEG/DEG_report.html" 
 
 include: "rules/preprocess.smk"
 include: "rules/alignment.smk"
 include: "rules/counts.smk"
 include: "rules/multiqc.smk"
+include: "rules/deg.smk"
 

@@ -10,3 +10,5 @@ input_path: "/opt/students/inga.bikulciene/raw_data_exercise_20260218"
 
 genome_index: "/opt/shared/SYSBIO/Mus_musculus.GRCm39/genome"
 gtf: "/opt/shared/SYSBIO/Mus_musculus.GRCm39/genome.gtf"
+
+samplesheet: "samplesheet.csv"

@@ -1,0 +1,242 @@
+---
+title: "Differential gene expression analysis"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+    echo: true
+---
+
+
+```{r setup, include=FALSE}
+# snakemake <- readRDS(".deg.Rmd.RDS")
+saveRDS(snakemake, ".deg.Rmd.RDS")
+
+library(edgeR)
+library(data.table)
+library(DESeq2)
+library(ggplot2)
+library(reshape2)
+library(pheatmap)
+library(RColorBrewer)
+library(pheatmap)
+library(dplyr)
+library(tibble)
+```
+```{r, include=TRUE}
+# Read featureCounts outputs
+files <- snakemake@input$counts
+y <- readDGE(files, columns = c(1, 7), comment.char = "#")
+count_matrix <- y$counts
+
+# let's rename the columns to sample IDs
+colnames(count_matrix) <- gsub(".featureCounts.txt", "", basename(files))
+head(count_matrix)
+```
+```{r, include=TRUE}
+# Read sample metadata
+samplesheet <- fread(snakemake@input$samplesheet)
+
+# Make sure phenotype is a factor with a WT as reference
+samplesheet$phenotype <-  relevel(factor(samplesheet$phenotype), ref = "WT")
+head(samplesheet)
+```
+```{r}
+# make a DESeq2 object and explore it
+library("DESeq2")
+dds <- DESeqDataSetFromMatrix(count_matrix,
+                                   colData = samplesheet,
+                                   design = ~ phenotype)
+
+dds
+```
+```{r}
+# It's not necessary to filter out genes with low expression for DESeq2 but let's do it anyway for visual exploration of the data and faster calculations
+# Let's keep only genes that have gene a minimum count of 10 in at least 2 samples.
+keep <- rowSums(counts(dds) >= 10) >= 2
+dds_filt <- dds[keep, ]
+dds_filt
+```
+```{r, include=TRUE}
+library(ggplot2)
+melted_counts <- reshape2::melt(as.matrix(counts(dds_filt)), varnames = c("Gene", "ID"), value.name = "Count")
+
+p <- ggplot(melted_counts, aes(x = ID, y = Count)) +
+  geom_boxplot(outlier.size = 0.2) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+p
+```
+```{r, include=TRUE}
+
+vsd <- vst(dds_filt, blind = FALSE)
+vsd_counts <- assay(vsd)
+
+head(vsd_counts)
+
+```
+```{r, include=TRUE}
+melted_vsd_counts <- reshape2::melt(as.matrix(vsd_counts), varnames = c("Gene", "ID"), value.name = "Count")
+
+p <- ggplot(melted_vsd_counts, aes(x = ID, y = Count)) +
+  geom_boxplot(outlier.size = 0.2) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+p
+
+```
+```{r, include=TRUE}
+dds_filt <- estimateSizeFactors(dds_filt)
+dds_filt <- estimateDispersions(dds_filt)
+plotDispEsts(dds_filt)
+
+```
+```{r, include=TRUE}
+p <- plotPCA(vsd, intgroup = "phenotype") + 
+      theme_minimal() +
+      ggtitle("PCA of VST counts")
+
+p
+```
+```{r, include=TRUE}
+
+# get top 500 most variable genes
+vars <- apply(assay(vsd), 1, var)
+top <- names(sort(vars, decreasing = TRUE))[1:500]
+mat <- assay(vsd)[top, ]
+
+# create annotation data frame for samples
+ann_col <- as.data.frame(colData(vsd)[, "phenotype", drop = FALSE])
+
+pheatmap::pheatmap(
+  mat,
+  scale = "row",
+  show_rownames = FALSE,
+  annotation_col = ann_col,
+  main = "Top 500 most variable genes",
+  cluster_cols = FALSE
+)
+
+```
+```{r, include=TRUE}
+
+sampleDists <- dist(t(assay(vsd)))
+
+
+sampleDistMatrix <- as.matrix(sampleDists)
+rownames(sampleDistMatrix) <- paste(vsd$ID, vsd$phenotype, sep="-")
+colnames(sampleDistMatrix) <- NULL
+colors <- colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+pheatmap(sampleDistMatrix,
+         clustering_distance_rows=sampleDists,
+         clustering_distance_cols=sampleDists,
+         col=colors)
+
+```
+```{r, include=TRUE}
+dds_filt <- DESeq(dds_filt)
+res <- results(dds_filt, contrast = c("phenotype", "WT", "CHD8_KO"))
+res
+summary(res)
+```
+```{r}
+resLFC <- lfcShrink(dds_filt, coef="phenotype_CHD8_KO_vs_WT", type="apeglm")
+resLFC
+
+```
+```{r, include=TRUE}
+top_genes <- head(resLFC[order(resLFC$padj), ],
+                  n = 10)
+top_genes
+
+```
+```{r, include=TRUE}
+top_genes_names <- rownames(top_genes)
+
+par(mfrow=c(3,3))
+
+plotCounts(dds_filt, gene=top_genes_names[1], intgroup="phenotype")
+plotCounts(dds_filt, gene=top_genes_names[2], intgroup="phenotype")
+plotCounts(dds_filt, gene=top_genes_names[3], intgroup="phenotype")
+plotCounts(dds_filt, gene=top_genes_names[4], intgroup="phenotype")
+plotCounts(dds_filt, gene=top_genes_names[5], intgroup="phenotype")
+plotCounts(dds_filt, gene=top_genes_names[6], intgroup="phenotype")
+plotCounts(dds_filt, gene=top_genes_names[7], intgroup="phenotype")
+plotCounts(dds_filt, gene=top_genes_names[8], intgroup="phenotype")
+plotCounts(dds_filt, gene=top_genes_names[9], intgroup="phenotype")
+
+
+```
+```{r, include=TRUE}
+#reset par
+par(mfrow=c(1,1))
+
+# Make a basic volcano plot
+with(res, plot(log2FoldChange, -log10(pvalue), pch=20, main="Volcano plot", xlim=c(-3,3)))
+
+# Add colored points: blue if padj<0.01, red if log2FC>1 and padj<0.05)
+with(subset(res, padj<.05 ), points(log2FoldChange, -log10(pvalue), pch=20, col="blue"))
+with(subset(res, padj<.05 & abs(log2FoldChange)>2), points(log2FoldChange, -log10(pvalue), pch=20, col="red"))
+
+
+
+```
+```{r, include=TRUE}
+library(fgsea)
+library(msigdbr)
+library(org.Mm.eg.db)
+
+msig_mouse <- msigdbr::msigdbr(species = "Mus musculus", category = "C5") %>%
+  dplyr::select(gs_name, ensembl_gene) %>%
+  dplyr::filter(!is.na(ensembl_gene), ensembl_gene != "") %>%
+  dplyr::distinct()
+
+pathways <- split(msig_mouse$ensembl_gene, msig_mouse$gs_name)
+
+rank_tbl <- cbind(ENSEMBL = rownames(as.data.frame(resLFC)), as.data.frame(resLFC))
+ranks <- rank_tbl$log2FoldChange
+names(ranks) <- rank_tbl$ENSEMBL
+ranks <- sort(ranks, decreasing = TRUE)
+
+# Run GSEA
+set.seed(1)
+fg <- fgsea(
+  pathways = pathways,
+  stats = ranks,
+  minSize = 15,
+  maxSize = 500
+) %>% as_tibble() %>% arrange(padj)
+
+# View results
+head(fg[, c("pathway", "NES", "pval", "padj")], 20)
+```
+
+```{r, include=TRUE}
+# plot the most significant  positive and negative pathways
+high_nes <- fg[order(-fg$NES),]$pathway[1]
+plotEnrichment(pathways[[high_nes]], ranks) + labs(title = high_nes)
+
+low_nes <- fg[order(fg$NES),]$pathway[1]
+plotEnrichment(pathways[[low_nes]], ranks) + labs(title = low_nes)
+
+```
+```{r, include=TRUE, fig.witdh=12, fig.height=5}
+# Select top 10 positive and top 10 negative pathways
+top_pos <- fg %>% filter(NES > 0) %>% top_n(10, NES)
+top_neg <- fg %>% filter(NES < 0) %>% top_n(-10, NES)
+top_pathways <- bind_rows(top_pos, top_neg) %>%
+  arrange(NES)  
+
+# Create dotplot
+ggplot(top_pathways, aes(x = NES, y = reorder(pathway, NES), size = -log10(padj), color = NES > 0)) +
+  geom_point() +
+  scale_color_manual(values = c("red", "blue"), labels = c("Downregulated", "Upregulated")) +
+  labs(x = "Normalized Enrichment Score (NES)", y = "Pathway", size = "-log10(padj)") +
+  theme_minimal() +
+  theme(legend.title = element_blank(),
+        axis.text.y = element_text(size = 7))
+
+```
