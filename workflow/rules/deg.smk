@@ -7,3 +7,4 @@ rule deg:
         "results/DEG/DEG_report.html" 
     conda: "../envs/deg.yaml" 
     script:"../src/deg.Rmd"
+    

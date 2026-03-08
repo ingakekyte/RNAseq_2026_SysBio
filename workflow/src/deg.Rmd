@@ -39,7 +39,10 @@ head(count_matrix)
 samplesheet <- fread(snakemake@input$samplesheet)
 
 # Make sure phenotype is a factor with a WT as reference
-samplesheet$phenotype <-  relevel(factor(samplesheet$phenotype), ref = "WT")
+# samplesheet$phenotype <-  relevel(factor(samplesheet$phenotype), ref = "WT")
+
+# NEW PROJECT
+samplesheet$phenotype <-  relevel(factor(samplesheet$phenotype), ref = "Ctrl")
 head(samplesheet)
 ```
 ```{r}
@@ -70,8 +73,11 @@ p <- ggplot(melted_counts, aes(x = ID, y = Count)) +
 p
 ```
 ```{r, include=TRUE}
+# muted vertion
+# vsd <- vst(dds_filt, blind = FALSE)
+# vsd_counts <- assay(vsd)
 
-vsd <- vst(dds_filt, blind = FALSE)
+vsd <- varianceStabilizingTransformation(dds_filt, blind = FALSE)
 vsd_counts <- assay(vsd)
 
 head(vsd_counts)
@@ -104,9 +110,17 @@ p
 ```{r, include=TRUE}
 
 # get top 500 most variable genes
+# vars <- apply(assay(vsd), 1, var)
+# top <- names(sort(vars, decreasing = TRUE))[1:500]
+# mat <- assay(vsd)[top, ]
+
+# new project
+# get top most variable genes
 vars <- apply(assay(vsd), 1, var)
-top <- names(sort(vars, decreasing = TRUE))[1:500]
+n_top <- min(500, nrow(assay(vsd)))
+top <- names(sort(vars, decreasing = TRUE))[1:n_top]
 mat <- assay(vsd)[top, ]
+
 
 # create annotation data frame for samples
 ann_col <- as.data.frame(colData(vsd)[, "phenotype", drop = FALSE])
@@ -116,7 +130,8 @@ pheatmap::pheatmap(
   scale = "row",
   show_rownames = FALSE,
   annotation_col = ann_col,
-  main = "Top 500 most variable genes",
+  # main = "Top 500 most variable genes",
+  main = paste("Top", n_top, "most variable genes"),
   cluster_cols = FALSE
 )
 
@@ -138,12 +153,21 @@ pheatmap(sampleDistMatrix,
 ```
 ```{r, include=TRUE}
 dds_filt <- DESeq(dds_filt)
-res <- results(dds_filt, contrast = c("phenotype", "WT", "CHD8_KO"))
+
+# Old excercise
+# res <- results(dds_filt, contrast = c("phenotype", "WT", "CHD8_KO"))
+
+# New Project
+res <- results(dds_filt, contrast = c("phenotype", "Maternal_0.3Cyp", "Ctrl"))
 res
 summary(res)
 ```
 ```{r}
-resLFC <- lfcShrink(dds_filt, coef="phenotype_CHD8_KO_vs_WT", type="apeglm")
+# Old excercise
+# resLFC <- lfcShrink(dds_filt, coef="phenotype_CHD8_KO_vs_WT", type="apeglm")
+
+# New project
+resLFC <- lfcShrink(dds_filt, coef="phenotype_Maternal_0.3Cyp_vs_Ctrl", type="apeglm")
 resLFC
 
 ```

@@ -11,7 +11,7 @@ rule hisat2:
         index=lambda wc: config["genome_index"]
     conda:
         "../envs/rnaseq_preprocess.yaml"
-    threads: 2
+    threads: 6
     shell:
         """
         mkdir -p results/hisat2

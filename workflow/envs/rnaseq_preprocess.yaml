@@ -8,3 +8,4 @@ dependencies:
   - fastp=0.24.0
   - hisat2
   - subread=2.0.8
+  
