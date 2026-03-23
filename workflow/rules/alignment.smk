@@ -2,7 +2,8 @@
 
 rule hisat2:
     input:
-        fastq=lambda wc: f"{input_path}/{wc.sample}_filtered.fastq"
+        r1=lambda wc: f"{input_path}/{wc.sample}_1_filtered.fastq",
+        r2=lambda wc: f"{input_path}/{wc.sample}_2_filtered.fastq"
     output:
         sam="results/hisat2/{sample}.sam",
         bam="results/hisat2/{sample}.bam",
@@ -15,7 +16,8 @@ rule hisat2:
     shell:
         """
         mkdir -p results/hisat2
-        hisat2 -p {threads} -x {params.index} -U {input.fastq} --new-summary \
+        hisat2 -p {threads} -x {params.index} \
+          -1 {input.r1} -2 {input.r2} --new-summary \
           --summary-file {output.summary} -S {output.sam}
         samtools view -bS {output.sam} > {output.bam}
         """

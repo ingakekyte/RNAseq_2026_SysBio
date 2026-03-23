@@ -2,10 +2,14 @@ configfile: "config/config.yaml"
 
 samples = config["samples"]
 input_path = config["input_path"]
+mates = ["1", "2"]
 
 rule all:
     input:
-        expand("results/fastqc/{sample}_{stage}_fastqc.html", sample=samples, stage=["raw","filtered"]),
+        expand("results/fastqc/raw/{sample}_{mate}_fastqc.html",
+               sample=samples, mate=mates),
+        expand("results/fastqc/filtered/{sample}_{mate}_filtered_fastqc.html",
+               sample=samples, mate=mates),       
         expand("results/fastp/{sample}_fastp.html", sample=samples),
         expand("results/hisat2/{sample}.sorted.bam.bai", sample=samples),
         expand("results/counts/{sample}.featureCounts.txt.summary", sample=samples),

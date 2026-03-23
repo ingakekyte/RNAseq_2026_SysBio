@@ -3,18 +3,16 @@ samples:
   - SRR34104259
   - SRR34104260
   - SRR34104258
-  - SRR34104262
   - SRR34104263
-  - SRR34104233
-  - SRR34104236
-  - SRR34104238
-  - SRR34104234
-  - SRR34104235
-  - SRR34104237
+  - SRR34104262
+  - SRR34104221
+  - SRR34104222
+  - SRR34104223
+  - SRR34104226
+  - SRR34104229
+  - SRR34104224
 
 
-# old exercise data
-#input_path: "/opt/students/inga.bikulciene/raw_data_exercise_20260218"
 input_path: "/opt/students/inga.bikulciene/new_project_raw_data"
 
 genome_index: "/opt/shared/SYSBIO/Mus_musculus.GRCm39/genome"

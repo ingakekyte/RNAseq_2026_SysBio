@@ -12,6 +12,7 @@ rule count:
         """
         mkdir -p results/counts
         featureCounts \
+          -p \
           -t exon -g gene_id \
           -T {threads} \
           -a {input.gtf} \

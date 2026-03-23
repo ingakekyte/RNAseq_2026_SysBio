@@ -23,6 +23,7 @@ library(RColorBrewer)
 library(pheatmap)
 library(dplyr)
 library(tibble)
+library(org.Mm.eg.db)
 ```
 ```{r, include=TRUE}
 # Read featureCounts outputs
@@ -31,26 +32,33 @@ y <- readDGE(files, columns = c(1, 7), comment.char = "#")
 count_matrix <- y$counts
 
 # let's rename the columns to sample IDs
-colnames(count_matrix) <- gsub(".featureCounts.txt", "", basename(files))
+colnames(count_matrix) <- gsub("\\.featureCounts\\.txt$", "", basename(files))
 head(count_matrix)
 ```
 ```{r, include=TRUE}
 # Read sample metadata
 samplesheet <- fread(snakemake@input$samplesheet)
+samplesheet$phenotype <- relevel(factor(samplesheet$phenotype), ref = "Ctrl")
+samplesheet$sex <- factor(samplesheet$sex)
 
-# Make sure phenotype is a factor with a WT as reference
-# samplesheet$phenotype <-  relevel(factor(samplesheet$phenotype), ref = "WT")
+# Make sample IDs row names and match count matrix order
+samplesheet <- as.data.frame(samplesheet)
+rownames(samplesheet) <- samplesheet$ID
+samplesheet <- samplesheet[colnames(count_matrix), , drop = FALSE]
 
-# NEW PROJECT
-samplesheet$phenotype <-  relevel(factor(samplesheet$phenotype), ref = "Ctrl")
 head(samplesheet)
+table(samplesheet$phenotype, samplesheet$sex)
+
 ```
 ```{r}
 # make a DESeq2 object and explore it
 library("DESeq2")
-dds <- DESeqDataSetFromMatrix(count_matrix,
-                                   colData = samplesheet,
-                                   design = ~ phenotype)
+
+dds <- DESeqDataSetFromMatrix(
+  count_matrix,
+  colData = samplesheet,
+  design = ~ sex + phenotype
+)
 
 dds
 ```
@@ -74,8 +82,6 @@ p
 ```
 ```{r, include=TRUE}
 # muted vertion
-# vsd <- vst(dds_filt, blind = FALSE)
-# vsd_counts <- assay(vsd)
 
 vsd <- varianceStabilizingTransformation(dds_filt, blind = FALSE)
 vsd_counts <- assay(vsd)
@@ -101,20 +107,14 @@ plotDispEsts(dds_filt)
 
 ```
 ```{r, include=TRUE}
-p <- plotPCA(vsd, intgroup = "phenotype") + 
+
+p <- plotPCA(vsd, intgroup = c("phenotype", "sex")) + 
       theme_minimal() +
       ggtitle("PCA of VST counts")
-
 p
 ```
 ```{r, include=TRUE}
 
-# get top 500 most variable genes
-# vars <- apply(assay(vsd), 1, var)
-# top <- names(sort(vars, decreasing = TRUE))[1:500]
-# mat <- assay(vsd)[top, ]
-
-# new project
 # get top most variable genes
 vars <- apply(assay(vsd), 1, var)
 n_top <- min(500, nrow(assay(vsd)))
@@ -123,14 +123,13 @@ mat <- assay(vsd)[top, ]
 
 
 # create annotation data frame for samples
-ann_col <- as.data.frame(colData(vsd)[, "phenotype", drop = FALSE])
+ann_col <- as.data.frame(colData(vsd)[, c("phenotype", "sex"), drop = FALSE])
 
 pheatmap::pheatmap(
   mat,
   scale = "row",
   show_rownames = FALSE,
   annotation_col = ann_col,
-  # main = "Top 500 most variable genes",
   main = paste("Top", n_top, "most variable genes"),
   cluster_cols = FALSE
 )
@@ -142,7 +141,7 @@ sampleDists <- dist(t(assay(vsd)))
 
 
 sampleDistMatrix <- as.matrix(sampleDists)
-rownames(sampleDistMatrix) <- paste(vsd$ID, vsd$phenotype, sep="-")
+rownames(sampleDistMatrix) <- paste(vsd$ID, vsd$phenotype, vsd$sex, sep="-")
 colnames(sampleDistMatrix) <- NULL
 colors <- colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
 pheatmap(sampleDistMatrix,
@@ -154,26 +153,39 @@ pheatmap(sampleDistMatrix,
 ```{r, include=TRUE}
 dds_filt <- DESeq(dds_filt)
 
-# Old excercise
-# res <- results(dds_filt, contrast = c("phenotype", "WT", "CHD8_KO"))
+# Check model coefficients
+resultsNames(dds_filt)
 
-# New Project
-res <- results(dds_filt, contrast = c("phenotype", "Maternal_0.3Cyp", "Ctrl"))
+#res <- results(dds_filt, contrast = c("phenotype", "Maternal_0.3Cyp", "Ctrl"))
+#res <- results(dds_filt, contrast = c("phenotype", "Paternal_0.3Cyp", "Ctrl"))
+res <- results(dds_filt, contrast = c("phenotype", "Both_0.3Cyp", "Ctrl"))
 res
 summary(res)
 ```
 ```{r}
-# Old excercise
-# resLFC <- lfcShrink(dds_filt, coef="phenotype_CHD8_KO_vs_WT", type="apeglm")
 
-# New project
-resLFC <- lfcShrink(dds_filt, coef="phenotype_Maternal_0.3Cyp_vs_Ctrl", type="apeglm")
+#resLFC <- lfcShrink(dds_filt, coef="phenotype_Maternal_0.3Cyp_vs_Ctrl", type="apeglm")
+#resLFC <- lfcShrink(dds_filt, coef="phenotype_Paternal_0.3Cyp_vs_Ctrl", type="apeglm")
+resLFC <- lfcShrink(dds_filt, coef="phenotype_Both_0.3Cyp_vs_Ctrl", type="apeglm")
 resLFC
 
 ```
 ```{r, include=TRUE}
 top_genes <- head(resLFC[order(resLFC$padj), ],
                   n = 10)
+
+symbols <- mapIds(
+  org.Mm.eg.db,
+  keys = rownames(top_genes),
+  keytype = "ENSEMBL",
+  column = "SYMBOL",
+  multiVals = "first"
+)
+
+top_genes <- as.data.frame(top_genes)
+top_genes$ENSEMBL <- rownames(top_genes)
+top_genes$symbol <- symbols[top_genes$ENSEMBL]
+
 top_genes
 
 ```
@@ -247,7 +259,7 @@ low_nes <- fg[order(fg$NES),]$pathway[1]
 plotEnrichment(pathways[[low_nes]], ranks) + labs(title = low_nes)
 
 ```
-```{r, include=TRUE, fig.witdh=12, fig.height=5}
+```{r, include=TRUE, fig.width=12, fig.height=5}
 # Select top 10 positive and top 10 negative pathways
 top_pos <- fg %>% filter(NES > 0) %>% top_n(10, NES)
 top_neg <- fg %>% filter(NES < 0) %>% top_n(-10, NES)
